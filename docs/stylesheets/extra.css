@@ -1,0 +1,20 @@
+/* Full-screen width: Material caps the content grid at ~61rem by default.
+   Let the page use the full viewport width instead. */
+.md-grid {
+  max-width: initial;
+}
+
+/* Give the main content some breathing room at the edges on wide screens. */
+.md-main__inner {
+  margin-top: 1.5rem;
+}
+
+/* Center Mermaid diagrams and let them scale to the available width. */
+.mermaid {
+  text-align: center;
+}
+
+/* Let wide tables scroll horizontally instead of overflowing the page. */
+.md-typeset__table {
+  width: 100%;
+}
