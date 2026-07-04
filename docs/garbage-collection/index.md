@@ -64,16 +64,55 @@ flowchart LR
 
 ## Memory regions during a GC cycle
 
-Objects flow through the heap in a predictable pattern. Each region has a
-role in the cycle:
+Objects flow through the heap in a predictable pattern. The sequence below
+follows a batch of objects from allocation to reclaim, showing which region
+holds them at each step:
 
 ```mermaid
-flowchart LR
-    A[new Object] --> B[Eden]
-    B -->|Eden full<br/>minor GC| C[Survivor<br/>S0 / S1]
-    C -->|next minor GC| C
-    C -->|age ≥ threshold| D[Old]
-    D -->|Old full<br/>major GC| E((reclaimed))
+sequenceDiagram
+    autonumber
+    participant App as App thread
+    participant Eden
+    participant S0 as Survivor S0
+    participant S1 as Survivor S1
+    participant Old
+    participant GC as GC threads
+
+    App->>Eden: new Object (bump the pointer)
+    App->>Eden: new Object
+    Note over Eden: Eden fills up
+
+    rect rgb(255, 235, 220)
+        Note over App,GC: Minor GC #1 — copy live out of Eden
+        GC->>Eden: scan for live objects
+        GC->>S0: copy live (age → 1)
+        Note over Eden,S1: Eden cleared · S1 still empty
+    end
+
+    App->>Eden: allocate more
+    Note over Eden: Eden fills again
+
+    rect rgb(255, 235, 220)
+        Note over App,GC: Minor GC #2 — survivors bounce
+        GC->>Eden: scan
+        GC->>S0: scan
+        GC->>S1: copy all live (age++)
+        Note over Eden,S0: Eden and S0 cleared
+    end
+
+    Note over App,GC: survivors bounce S0 ↔ S1 each cycle, ageing every time
+
+    rect rgb(255, 235, 220)
+        Note over App,GC: Minor GC — promotion
+        GC->>Old: promote objects at MaxTenuringThreshold (default 15)
+    end
+
+    Note over Old: Old fills after many promotions
+
+    rect rgb(240, 120, 120)
+        Note over App,GC: Major GC — reclaim Old
+        GC->>Old: mark dead objects, reclaim space
+    end
 ```
 
 1. **Allocation** — a `new` operation carves space out of **Eden**.

@@ -11,34 +11,21 @@ raw work-per-CPU matters more than tail latency.
 
 ## How it works
 
+Parallel GC uses the [standard generational heap](index.md#heap-memory-architecture)
+— young and old — laid out as **two contiguous regions** (the distinguishing
+structural difference from G1's regionised heap). Both are collected
+stop-the-world:
+
 - **Young collection:** all application threads stop. Multiple GC threads
   (a count derived from the machine's core count — see
   `-XX:ParallelGCThreads` below) copy live objects from Eden to a Survivor
   space in parallel. Fast, but stop-the-world.
 - **Old collection ("Full GC"):** all application threads stop. Multiple GC
-  threads compact the entire old generation. This can take **seconds** on a
-  multi-GB heap — the main downside.
+  threads compact the entire old generation **in place**. This can take
+  **seconds** on a multi-GB heap — the main downside.
 
 There is no concurrent phase. The collector's whole strategy is "do lots of
 GC work in parallel while the app is paused, then get out of the way."
-
-## Heap layout
-
-```mermaid
-flowchart LR
-    subgraph Heap["HotSpot heap"]
-        direction LR
-        subgraph Young["Young generation<br/><i>contiguous</i>"]
-            direction LR
-            Eden ~~~ S0 ~~~ S1
-        end
-        Young ~~~ Old["Old generation<br/><i>contiguous</i>"]
-    end
-```
-
-Objects are allocated in Eden. Survivors of a minor GC bounce between S0 and
-S1, aging each cycle; once old enough (or when Survivor overflows), they are
-**promoted** to the old generation. A full GC compacts the old gen in place.
 
 ## Requests under Parallel GC
 
