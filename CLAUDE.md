@@ -26,6 +26,10 @@ java_notes/
 ├── .gitignore                ← excludes .venv/, site/, .env
 ├── docs/                     ← single source of truth for all notes
 │   ├── index.md              ← landing page
+│   ├── garbage-collection/   ← multi-page topic (folder + index.md pattern)
+│   │   ├── index.md          ← overview + shared concepts + comparison
+│   │   ├── parallel-gc.md
+│   │   └── g1gc.md
 │   └── stylesheets/extra.css ← full-width layout override
 ├── .github/workflows/        ← deploy-docs.yml: auto-build + publish to GitHub Pages
 ├── .venv/                    ← gitignored; MkDocs Material lives here
@@ -90,9 +94,16 @@ framework or library.
 
 All notes live under `docs/` as `.md` files.
 
-- **Filename:** `NN-topic-name.md` (zero-padded, kebab-case), continuing the sequence.
+- **Filenames:**
+    - Single-file topic: `NN-topic-name.md` (zero-padded, kebab-case) at the
+      root of `docs/`.
+    - Multi-page topic: kebab-case folder `topic-name/` with `index.md`
+      (overview) plus one leaf file per sub-topic. Order sub-topics via the
+      `nav:` block in `mkdocs.yml`, not via numeric prefixes on the files.
+      The `navigation.indexes` MkDocs feature makes the section header link
+      to `index.md`.
 - **Title:** `# Title Case Title` — plain, no "Topic N:" prefix and no number
-  (the `NN-` lives in the filename only).
+  (any `NN-` lives in the filename only).
 - **Sections:** `## Heading`, `### Sub-heading`. No ALL CAPS headings.
 - **Closing:** end each note with a recap section (e.g. "Key Takeaways").
 - **Lists:** `-` for bullets; 4-space indent for sub-bullets.
