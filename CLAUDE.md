@@ -108,9 +108,14 @@ All notes live under `docs/` as `.md` files.
 - **Closing:** end each note with a recap section (e.g. "Key Takeaways").
 - **Lists:** `-` for bullets; 4-space indent for sub-bullets.
 - **Code blocks:** fenced with ` ```java ` (or the appropriate language tag).
-- **Diagrams:** Mermaid (` ```mermaid `) for flowcharts and relationships. **No images.**
-  Inside Mermaid node labels use plain text + HTML (`<br/>`, `<i>`, `•`) — Markdown
-  `**bold**`/`*italic*` does not render reliably there.
+- **Diagrams:** Mermaid (` ```mermaid `) for **every** diagram — flowcharts,
+  relationships, memory layouts, timelines, everything. **No ASCII art,
+  no box-drawing characters (`┌─┐│└─┘`), no pipe-bar layouts (`[ Eden | S0 | S1 ]`),
+  and no images.** For memory / region layouts, use `flowchart LR` with nested
+  `subgraph` blocks and `classDef` for colored roles; use `~~~` (invisible
+  links) between nodes to arrange them in a row without visible arrows.
+  Inside Mermaid node labels use plain text + HTML (`<br/>`, `<i>`, `•`) —
+  Markdown `**bold**`/`*italic*` does not render reliably there.
 - **Admonitions:** `!!! tip "Think of it as"` for everyday analogies;
   `!!! note`, `!!! example`, `!!! warning`, `!!! info` as appropriate.
 - **Tables:** Markdown tables for side-by-side comparisons (no ASCII alignment).

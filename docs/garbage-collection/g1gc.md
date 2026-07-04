@@ -37,11 +37,22 @@ couldn't keep up and you need to tune.
 
 ## Heap layout
 
-```
-[E][ ][O][S][E][H][H][O][ ][E][O][S][ ][O][E][ ] ...
- E = Eden   S = Survivor   O = Old   H = Humongous   [ ] = free
+```mermaid
+flowchart LR
+    subgraph Heap["G1 heap: fixed-size regions with dynamic roles"]
+        direction LR
+        R1[E]:::eden ~~~ R2[·]:::free ~~~ R3[O]:::old ~~~ R4[S]:::surv
+        R4 ~~~ R5[E]:::eden ~~~ R6[H]:::hum ~~~ R7[H]:::hum ~~~ R8[O]:::old
+        R8 ~~~ R9[E]:::eden ~~~ R10[O]:::old ~~~ R11[·]:::free ~~~ R12[S]:::surv
+    end
+    classDef eden fill:#a3d977,stroke:#333,color:#000
+    classDef surv fill:#f9d976,stroke:#333,color:#000
+    classDef old fill:#f28b8b,stroke:#333,color:#000
+    classDef hum fill:#c78be3,stroke:#333,color:#000
+    classDef free fill:#e0e0e0,stroke:#333,color:#000
 ```
 
+Legend: **E**den · **S**urvivor · **O**ld · **H**umongous · **·** free.
 Regions are the same size, but their roles are assigned dynamically.
 
 ```mermaid

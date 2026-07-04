@@ -23,9 +23,16 @@ GC work in parallel while the app is paused, then get out of the way."
 
 ## Heap layout
 
-```
-[  Eden  |  S0  |  S1  ] [        Old generation         ]
-     ^ Young gen (contiguous)      ^ Old gen (contiguous)
+```mermaid
+flowchart LR
+    subgraph Heap["HotSpot heap"]
+        direction LR
+        subgraph Young["Young generation<br/><i>contiguous</i>"]
+            direction LR
+            Eden ~~~ S0 ~~~ S1
+        end
+        Young ~~~ Old["Old generation<br/><i>contiguous</i>"]
+    end
 ```
 
 Objects are allocated in Eden. Survivors of a minor GC bounce between S0 and
