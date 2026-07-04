@@ -35,6 +35,14 @@ If G1 falls behind — allocation outpaces collection — it triggers a **full
 GC** as a safety net. A full GC in G1 is a red flag: it means the collector
 couldn't keep up and you need to tune.
 
+```mermaid
+flowchart LR
+    A[Young<br/>collections] -->|allocation pressure| B[Concurrent<br/>marking]
+    B --> C[Mixed<br/>collections]
+    C --> A
+    C -.->|falls behind| D[Full GC<br/>tune this away]
+```
+
 ## Heap layout
 
 ```mermaid
@@ -55,13 +63,70 @@ flowchart LR
 Legend: **E**den · **S**urvivor · **O**ld · **H**umongous · **·** free.
 Regions are the same size, but their roles are assigned dynamically.
 
+## Requests under G1GC
+
+G1's design goal is that the pause band stays **short and predictable**.
+Old-gen work is split into mixed collections, each bounded by
+`MaxGCPauseMillis`, and the marking work that identifies garbage runs
+**mostly concurrently** with your app — no long stop.
+
 ```mermaid
-flowchart LR
-    A[Young<br/>collections] -->|allocation pressure| B[Concurrent<br/>marking]
-    B --> C[Mixed<br/>collections]
-    C --> A
-    C -.->|falls behind| D[Full GC<br/>tune this away]
+sequenceDiagram
+    autonumber
+    participant C1 as Client A
+    participant C2 as Client B
+    participant App as App threads
+    participant Eden
+    participant Old
+    participant GC as G1 GC threads
+
+    C1->>App: GET /orders/123
+    App->>Eden: allocate
+    App-->>C1: 200 OK (12 ms)
+    C2->>App: GET /users/42
+    App->>Eden: allocate
+    App-->>C2: 200 OK (14 ms)
+
+    Note over Eden: Eden regions full
+    rect rgb(255, 235, 220)
+        Note over App,GC: STW: young collection (~40 ms, bounded)
+        GC->>Eden: evacuate live regions
+    end
+
+    C1->>App: GET /orders/456
+    App-->>C1: 200 OK (13 ms)
+
+    Note over Old: Old occupancy hits IHOP (default 45%)
+    par Concurrent marking — no long pause
+        GC->>Old: mark reachable objects<br/>in background
+    and App keeps serving
+        C2->>App: POST /orders
+        App-->>C2: 201 Created (11 ms)
+        C1->>App: GET /users/42
+        App-->>C1: 200 OK (13 ms)
+    end
+
+    Note over GC: marking done — pick garbage-first regions
+    rect rgb(255, 235, 220)
+        Note over App,GC: STW: mixed collection (~60 ms, bounded)
+        GC->>Eden: evacuate young
+        GC->>Old: evacuate selected old regions
+    end
+
+    C2->>App: GET /users/42
+    App-->>C2: 200 OK (14 ms)
 ```
+
+The critical bit is the `par` block: G1 does the expensive work of scanning
+the old generation **while the app keeps serving requests**, then commits
+the reclaim in a short STW mixed collection. Compare to Parallel's full GC,
+which is one giant STW event.
+
+!!! info "The 'fully concurrent' caveat"
+    Marking is *mostly* concurrent but includes two very short STW
+    sub-phases — **Initial Mark** (piggybacked on a young collection) and
+    **Remark** — each typically milliseconds. That is why G1's pause band
+    stays flat rather than truly disappearing.
 
 ## When to use it
 

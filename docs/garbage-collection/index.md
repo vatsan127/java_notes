@@ -92,6 +92,38 @@ flowchart LR
    the old generation (and usually the young generation too, in the same
    pass).
 
+## GC and your request path
+
+The GC and your HTTP handlers share the JVM. When a stop-the-world pause
+hits, every in-flight request is frozen until the collector finishes — the
+pause is user-visible latency.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Client
+    participant App as App thread
+    participant Heap
+    participant GC as GC thread
+
+    Client->>App: HTTP Request
+    App->>Heap: new Object (into Eden)
+    Heap-->>App: allocated
+    App-->>Client: 200 OK (12 ms)
+
+    Client->>App: HTTP Request
+    App->>Heap: new Object
+    Note over Heap: Eden full
+    rect rgb(255, 235, 220)
+        Note over App,GC: Stop-the-world: minor GC<br/>every app thread is paused
+        GC->>Heap: copy live to Survivor,<br/>reclaim Eden
+    end
+    App-->>Client: 200 OK (62 ms — includes GC pause)
+```
+
+That is why collector choice and tuning matter — you are deciding how much
+latency each user occasionally pays.
+
 ## Minor GC vs. Major GC
 
 |  | Minor GC | Major GC |
@@ -103,7 +135,7 @@ flowchart LR
 | **Algorithm** | Copying — cheap because young is small and mostly dead | Mark-compact or concurrent marking — expensive |
 | **Stop-the-world?** | Yes (in Parallel and G1) | Yes, at least partially |
 
-!!! note "\"Major GC\" vs. \"Full GC\""
+!!! note "Major GC vs. Full GC"
     Terminology varies. A **full GC** collects the *entire* heap in one
     stop-the-world pass — that's what Parallel GC always does for its
     old-gen work. G1 usually collects the old generation as a series of

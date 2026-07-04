@@ -12,8 +12,9 @@ raw work-per-CPU matters more than tail latency.
 ## How it works
 
 - **Young collection:** all application threads stop. Multiple GC threads
-  (one per core by default) copy live objects from Eden to a Survivor space
-  in parallel. Fast, but stop-the-world.
+  (a count derived from the machine's core count — see
+  `-XX:ParallelGCThreads` below) copy live objects from Eden to a Survivor
+  space in parallel. Fast, but stop-the-world.
 - **Old collection ("Full GC"):** all application threads stop. Multiple GC
   threads compact the entire old generation. This can take **seconds** on a
   multi-GB heap — the main downside.
@@ -39,6 +40,53 @@ Objects are allocated in Eden. Survivors of a minor GC bounce between S0 and
 S1, aging each cycle; once old enough (or when Survivor overflows), they are
 **promoted** to the old generation. A full GC compacts the old gen in place.
 
+## Requests under Parallel GC
+
+Two pause profiles show up in production. **Minor GC** is short and (mostly)
+painless. **Full GC** compacts the entire old generation stop-the-world —
+on a large heap this can freeze every in-flight request for seconds.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C1 as Client A
+    participant C2 as Client B
+    participant App as App threads
+    participant Eden
+    participant Old
+    participant GC as GC threads
+
+    C1->>App: GET /orders/123
+    App->>Eden: allocate
+    App-->>C1: 200 OK (12 ms)
+    C2->>App: GET /users/42
+    App->>Eden: allocate
+    App-->>C2: 200 OK (14 ms)
+
+    Note over Eden: Eden full
+    rect rgb(255, 235, 220)
+        Note over App,GC: STW: minor GC (~50 ms)<br/>any in-flight request pauses here
+        GC->>Eden: copy live to Survivor
+        GC->>Old: promote aged survivors
+    end
+
+    C1->>App: GET /orders/456
+    App-->>C1: 200 OK (13 ms)
+
+    Note over Old: Old fills after many minor GCs
+    rect rgb(240, 120, 120)
+        Note over App,GC: STW: FULL GC (~3 s) — every request stalls
+        C2->>App: GET /users/42
+        GC->>Old: mark + compact<br/>entire old generation
+    end
+
+    App-->>C2: 200 OK (3.1 s — timeout risk)
+```
+
+Notice the two red bands: the small one is a minor GC — bounded and
+predictable — but the darker one is the full GC, and it stops **every**
+thread until the entire old generation has been compacted.
+
 ## When to use it
 
 - Batch jobs, data pipelines, offline processing — anywhere throughput
@@ -53,7 +101,7 @@ S1, aging each cycle; once old enough (or when Survivor overflows), they are
 | `-XX:+UseParallelGC` | Selects the collector. | Explicit opt-in on Java 9+. |
 | `-Xms<size>` | Initial heap size. | Set equal to `-Xmx` on servers to skip resize pauses. |
 | `-Xmx<size>` | Maximum heap size. | The single most impactful flag — start here. |
-| `-XX:ParallelGCThreads=<n>` | GC worker thread count. | Defaults to core count. Cap it in shared containers. |
+| `-XX:ParallelGCThreads=<n>` | GC worker thread count. | Defaults to `ncores` on small machines, `≈ 5/8 × ncores` on machines with more than 8 hardware threads. Cap it in shared containers. |
 | `-XX:MaxGCPauseMillis=<ms>` | Target pause time (soft goal). | Parallel shrinks young gen to try to hit this — often at the cost of throughput. |
 | `-XX:GCTimeRatio=<n>` | Target ratio of app time to GC time as `n:1`. | `19` → aim for ≤ 5 % GC time. |
 | `-XX:NewRatio=<n>` | Old-to-young ratio as `n:1`. | `2` → young is 1/3 of the heap. |
